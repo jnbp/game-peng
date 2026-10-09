@@ -13,6 +13,10 @@ const COLOR_MODES = ['hs', 'rgb', 'rgbw', 'rgbww', 'xy'];
 // One round trip that returns only the lights: [entity_id, name, area, has colour]
 const LIGHTS_TEMPLATE = "{% set ns = namespace(l=[]) %}{% for s in states.light %}{% set ns.l = ns.l + [[s.entity_id, s.name, area_name(s.entity_id) or '', 1 if (s.attributes.supported_color_modes or []) | select('in', ['hs','rgb','rgbw','rgbww','xy']) | list | count > 0 else 0]] %}{% endfor %}{{ ns.l | tojson }}";
 
+// The single lamps behind the chosen lights: groups of any kind list their members in the
+// "entity_id" attribute, also nested. Lamps that are not reachable right now are left out.
+const MEMBERS_TEMPLATE = "{% set ns = namespace(todo=ids, out=[], seen=[]) %}{% for _ in range(4) %}{% set next = namespace(l=[]) %}{% for id in ns.todo if id not in ns.seen %}{% set ns.seen = ns.seen + [id] %}{% set kids = state_attr(id, 'entity_id') %}{% if kids is iterable and kids is not string and kids | count > 0 %}{% set next.l = next.l + (kids | list) %}{% elif id.startswith('light.') and states(id) not in ['unknown', 'unavailable'] %}{% set ns.out = ns.out + [id] %}{% endif %}{% endfor %}{% set ns.todo = next.l %}{% endfor %}{{ ns.out | unique | list | tojson }}";
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const rnd = (n) => Math.floor(Math.random() * n);
 const read = (k) => {
@@ -114,10 +118,14 @@ async function linkToken(url, token) {
 
 function unlink() {
   const old = auth;
-  if (held && dirty) putBack(0.3);
-  clearEffects();
+  run += 1;
+  clearTimers();
+  if (dirty && saved) putBack(0.3);
   held = false;
   armed = false;
+  saved = false;
+  dirty = false;
+  memberCache.clear();
   write(HELD_KEY, null);
   auth = null;
   write(AUTH_KEY, null);
@@ -255,8 +263,8 @@ async function send(msg, wait = 8000) {
   });
 }
 
-// Send without waiting. Effects must never queue up: if the line is down the
-// command is dropped and a reconnect starts in the background.
+// Send without waiting for the result. If the line is down the command is dropped
+// and a reconnect starts in the background.
 function fire(msg) {
   if (!sock) {
     if (auth) connect().catch(() => {});
@@ -276,7 +284,8 @@ function cachedLights() {
   return c && auth && c.url === auth.url && Array.isArray(c.list) ? c : null;
 }
 
-function renderLights() {
+// Render a template on the server and return its (JSON) result once
+function renderTemplate(template, variables) {
   return new Promise((resolve, reject) => {
     const id = nextId++;
     const stop = (fn, value) => {
@@ -298,7 +307,7 @@ function renderLights() {
     });
     waiting.set(id, { resolve() {}, reject: (e) => stop(reject, e), timer: 0 });
     try {
-      sock.send(JSON.stringify({ id, type: 'render_template', template: LIGHTS_TEMPLATE, timeout: 10, report_errors: true }));
+      sock.send(JSON.stringify({ id, type: 'render_template', template, variables, timeout: 10, report_errors: true }));
     } catch (e) {
       stop(reject, e);
     }
@@ -309,7 +318,7 @@ async function fetchLights() {
   await connect();
   let list;
   try {
-    const rows = await renderLights();
+    const rows = await renderTemplate(LIGHTS_TEMPLATE);
     list = rows.map(([id, name, area, color]) => ({ id, name: String(name || id), area: String(area || ''), color: Boolean(color) }));
   } catch (e) {
     // Older or restricted setups: fall back to the full state dump and filter here
@@ -330,20 +339,35 @@ async function fetchLights() {
 
 /* ---------- Effects ---------- */
 
-// Home Assistant itself remembers how the lights were: scene.create takes a
-// snapshot before the first effect and scene.turn_on puts everything back.
+// Home Assistant itself remembers how the lights were: scene.create takes a snapshot
+// before the first effect and scene.turn_on puts everything back. Three rules keep
+// that reliable, also with a group of twenty lamps behind a slow bridge:
+// 1. A group is remembered lamp by lamp, so every lamp returns to its own state.
+// 2. Commands never pile up. While the installation is still busy, effect steps are
+//    skipped, and the lights are only put back once every effect command is done.
+//    Otherwise a late effect step lands after the restore and leaves the room dark.
+// 3. Lights that may not have settled yet are never taken as the new "before".
 const MIN_GAP = 420; // ms between tick commands: gentle on Zigbee and never a fast strobe
+const SETTLE = 8000; // ms after putting lights back in which the old snapshot is reused
 const RED = [255, 0, 0];
+// Last resort when no snapshot could be taken or restored: a comfortable warm light
+const COMFORT = { brightness_pct: 70, color_temp_kelvin: 2700, transition: 1 };
 
 let targets = [];
-let held = false; // a snapshot exists that has not been put back yet
-let armed = false; // the snapshot is confirmed, effects may run
-let dirty = false; // an effect has changed the lights since the snapshot
-let snapshot = null;
-let restoreTimer = 0;
-let effectTimers = [];
+let held = false; // a round is on: effects may have changed the lights
+let armed = false; // effects may run
+let saved = false; // Home Assistant holds a snapshot for the current targets
+let dirty = false; // an effect has changed the lights since they were last put back
+let snapshot = null; // promise of the running arm()
+let restoring = null; // promise while the lights are being put back
+let backAt = -SETTLE; // when the lights were last put back
+let run = 0; // bumped to cancel a running bang
+let againTimer = 0;
 let lastTick = 0;
+let tickBusy = false;
 let phase = 0;
+const inflight = new Set(); // effect commands Home Assistant has not finished yet
+const memberCache = new Map();
 
 const PRESETS = {
   pulse: (n) => ({ rgb_color: [255, 20, 0], brightness_pct: n % 2 ? 100 : 22, transition: 0.15 }),
@@ -353,64 +377,92 @@ const PRESETS = {
   dim: (n) => (n === 1 ? { rgb_color: RED, brightness_pct: 10, transition: 1 } : null),
 };
 
+// [ms after the bang, light state, always shown]. Steps that are not marked are
+// flourishes and are dropped while earlier steps are still on their way.
 const BOOM = [
-  [0, { rgb_color: [255, 255, 255], brightness_pct: 100, transition: 0 }],
-  [150, { rgb_color: RED, brightness_pct: 100, transition: 0 }],
-  [340, { rgb_color: RED, brightness_pct: 6, transition: 0 }],
-  [520, { rgb_color: [255, 80, 0], brightness_pct: 100, transition: 0 }],
-  [760, { rgb_color: RED, brightness_pct: 100, transition: 0 }],
-  [1100, { rgb_color: [255, 20, 0], brightness_pct: 20, transition: 1.4 }],
+  [0, { rgb_color: [255, 255, 255], brightness_pct: 100, transition: 0 }, false],
+  [150, { rgb_color: RED, brightness_pct: 100, transition: 0 }, true],
+  [340, { rgb_color: RED, brightness_pct: 6, transition: 0 }, false],
+  [520, { rgb_color: [255, 80, 0], brightness_pct: 100, transition: 0 }, false],
+  [760, { rgb_color: RED, brightness_pct: 100, transition: 0 }, false],
+  [1100, { rgb_color: [255, 20, 0], brightness_pct: 20, transition: 1.4 }, false],
 ];
 const BOOM_LENGTH = 3000;
 
+// Send an effect command. The promise settles when Home Assistant has carried it out.
+// If the line is down the command is dropped and a reconnect starts in the background.
 function setLights(data) {
   dirty = true;
-  fire({ type: 'call_service', domain: 'light', service: 'turn_on', service_data: data, target: { entity_id: targets } });
+  if (!sock) {
+    if (auth) connect().catch(() => {});
+    return Promise.resolve();
+  }
+  const cmd = { type: 'call_service', domain: 'light', service: 'turn_on', service_data: data, target: { entity_id: targets } };
+  const p = send(cmd, 15000).then(() => {}, () => {});
+  inflight.add(p);
+  p.then(() => inflight.delete(p));
+  return p;
 }
+const settled = () => Promise.all([...inflight]);
 
-function clearEffects() {
-  effectTimers.forEach(clearTimeout);
-  effectTimers = [];
-  clearTimeout(restoreTimer);
-  restoreTimer = 0;
+function clearTimers() {
+  clearTimeout(againTimer);
+  againTimer = 0;
 }
 
 // Putting the lights back must not get lost, so this one waits for the line and retries
 function putBack(transition, scene = auth && auth.scene) {
   if (!scene) return Promise.resolve(false);
   const cmd = { type: 'call_service', domain: 'scene', service: 'turn_on', service_data: { transition }, target: { entity_id: `scene.${scene}` } };
-  return send(cmd)
-    .catch(() => sleep(1500).then(() => send(cmd)))
+  return send(cmd, 20000)
+    .catch(() => sleep(1500).then(() => send(cmd, 20000)))
     .then(() => true, () => false);
+}
+
+async function memberLights(ids) {
+  const key = ids.join(',');
+  if (memberCache.has(key)) return memberCache.get(key);
+  let list = ids;
+  try {
+    await connect();
+    const rows = await renderTemplate(MEMBERS_TEMPLATE, { ids });
+    if (Array.isArray(rows) && rows.length && rows.every((id) => typeof id === 'string')) list = rows;
+  } catch (e) { /* remember the chosen lights themselves */ }
+  memberCache.set(key, list);
+  return list;
 }
 
 // Remember how the lights are right now. Call when the fuse is lit.
 function arm(ids) {
   if (!auth || !ids.length) return Promise.resolve(false);
-  clearEffects();
+  run += 1;
+  clearTimers();
+  // Still showing an effect, or only just put back: the stored snapshot is the true
+  // "before". Reading the lights again now could catch them half-way.
+  const reuse = saved && ids.join(',') === targets.join(',')
+    && (held || Boolean(restoring) || performance.now() - backAt < SETTLE);
   targets = ids.slice();
   phase = 0;
-  if (held) {
-    // The last bang has not been put back yet: its snapshot is still the true "before"
-    if (dirty) putBack(0.3);
-    dirty = false;
-    return Promise.resolve(snapshot).then(() => armed);
-  }
   held = true;
   armed = false;
-  dirty = false;
   write(HELD_KEY, auth.scene);
-  const mine = send({ type: 'call_service', domain: 'scene', service: 'create', service_data: { scene_id: auth.scene, snapshot_entities: targets } })
-    .then(() => true, () => false)
-    .then((ok) => {
-      if (snapshot !== mine) return false;
-      armed = ok && held;
-      if (!ok) {
-        held = false;
-        write(HELD_KEY, null);
+  const mine = (async () => {
+    await settled();
+    if (restoring) await restoring;
+    if (reuse) {
+      if (dirty) {
+        dirty = false;
+        await putBack(0.3);
       }
-      return armed;
-    });
+    } else {
+      const list = await memberLights(targets);
+      saved = await send({ type: 'call_service', domain: 'scene', service: 'create', service_data: { scene_id: auth.scene, snapshot_entities: list } }, 15000)
+        .then(() => true, () => false);
+    }
+    if (snapshot !== mine || !held) return false;
+    armed = true; // without a snapshot the effects still run; the way back is the comfort light
+    return true;
+  })();
   snapshot = mine;
   return mine;
 }
@@ -422,49 +474,78 @@ function resetTick() {
 
 // One step of the ticking effect; call on every tick of the bomb
 function tick(preset) {
-  if (!armed) return;
+  if (!armed || tickBusy) return;
   const now = performance.now();
   if (now - lastTick < MIN_GAP) return;
   lastTick = now;
   phase += 1;
   const data = (PRESETS[preset] || PRESETS.pulse)(phase);
-  if (data) setLights(data);
+  if (!data) return;
+  tickBusy = true;
+  setLights(data).then(() => { tickBusy = false; });
 }
 
 // Paused: show the room as it was, but keep the snapshot for the rest of the round
 function pause() {
   if (!held || !dirty) return;
-  clearEffects();
   dirty = false;
-  putBack(0.4);
+  const mine = run;
+  settled().then(() => { if (held && run === mine && !dirty && saved) putBack(0.4); });
 }
 
 // The bang: white flash, red flicker, fade, then everything back to how it was
 function boom() {
-  if (!held) return;
-  clearEffects();
-  Promise.resolve(snapshot).then(() => {
-    if (!armed) return;
-    BOOM.forEach(([ms, data]) => effectTimers.push(setTimeout(() => setLights(data), ms)));
-    restoreTimer = setTimeout(() => release(1.2), BOOM_LENGTH);
+  if (!held) return Promise.resolve();
+  clearTimers();
+  run += 1;
+  const mine = run;
+  return Promise.resolve(snapshot).then(async () => {
+    if (run !== mine || !armed) return;
+    const t0 = performance.now();
+    for (const [ms, data, always] of BOOM) {
+      const wait = ms - (performance.now() - t0);
+      if (wait > 0) await sleep(wait);
+      if (run !== mine) return;
+      if (always || inflight.size < 2) setLights(data);
+    }
+    await settled();
+    await sleep(Math.max(400, BOOM_LENGTH - (performance.now() - t0)));
+    if (run !== mine) return;
+    await release(1.2);
   });
 }
 
-// Put the lights back and forget the snapshot
+// Put the lights back and end the round
 function release(transition = 0.5) {
-  clearEffects();
-  if (!held) return;
+  run += 1;
+  clearTimers();
+  if (!held) return restoring || Promise.resolve();
   const scene = auth && auth.scene;
   const changed = dirty;
+  const hadSnapshot = saved;
   held = false;
   armed = false;
   dirty = false;
-  snapshot = null;
   if (!changed) {
     write(HELD_KEY, null);
-    return;
+    return Promise.resolve();
   }
-  putBack(transition, scene).then((ok) => { if (ok && !held) write(HELD_KEY, null); });
+  const mine = (async () => {
+    await settled();
+    const ok = hadSnapshot && await putBack(transition, scene);
+    if (!ok) await setLights(COMFORT);
+    dirty = false;
+    backAt = performance.now();
+    if (!held) write(HELD_KEY, null);
+    if (restoring === mine) restoring = null;
+    // Once more a moment later: Home Assistant only touches lamps that still differ,
+    // which catches a lamp that answered late or missed its command.
+    if (ok && !held) {
+      againTimer = setTimeout(() => { if (!held && !restoring) putBack(0.5, scene); }, 2500);
+    }
+  })();
+  restoring = mine;
+  return mine;
 }
 
 // If the page was closed in the middle of an effect, put the lights back on the next start
@@ -477,7 +558,7 @@ function recover() {
 // Preview from the settings screen
 async function test(mode, preset, ids) {
   const ok = await arm(ids);
-  if (!ok) throw new Error('failed');
+  if (!ok || !sock) throw new Error('failed');
   if (mode === 'tick') {
     resetTick();
     for (let i = 0; i < 6; i++) {
@@ -485,8 +566,7 @@ async function test(mode, preset, ids) {
       await sleep(520);
     }
   }
-  boom();
-  await sleep(BOOM_LENGTH + 400);
+  await boom();
 }
 
 export const ha = {

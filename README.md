@@ -53,7 +53,9 @@ How it works:
 - The address has to be reachable over `https`, because the game itself is served over https.
 - Sign-in uses the normal Home Assistant login page. Alternatively, paste a long-lived access token from your Home Assistant profile.
 - The game talks straight to your Home Assistant over its WebSocket API. Nothing passes through a server of this project, and the access token is stored only in the browser of that device.
-- Before the first effect of a round the game asks Home Assistant to snapshot the chosen lights (`scene.create`) and restores that snapshot afterwards (`scene.turn_on`). If the page is closed in the middle of an effect, the lights are put back the next time the game opens.
+- Before the first effect of a round the game asks Home Assistant to snapshot the chosen lights (`scene.create`) and restores that snapshot afterwards (`scene.turn_on`). A group is remembered lamp by lamp, so every lamp returns to its own brightness and colour. If the page is closed in the middle of an effect, the lights are put back the next time the game opens.
+- Commands never pile up: while the installation is still busy, effect steps are skipped, and the lights are only put back once every effect command has been carried out. A large group behind a slow bridge therefore gets a simpler bang, not a dark room afterwards.
+- If no snapshot can be taken or restored, the lights end on a comfortable warm white (70 %) instead.
 - Tick effects are limited to roughly two commands per second. A few lights or one light group respond fastest.
 
 ## Adding content

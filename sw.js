@@ -1,5 +1,5 @@
 // Offline cache. Bump the version number whenever the game changes.
-const VERSION = 'peng-v5';
+const VERSION = 'peng-v6';
 const FONT_HOST = 'fonts.bunny.net';
 const FILES = [
   './',
