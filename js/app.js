@@ -1,6 +1,7 @@
 import { TEXT, CATS } from './i18n.js';
 import { sfx } from './audio.js';
 import { drawTask } from './tasks.js';
+import { ha, cleanUrl } from './ha.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -36,6 +37,7 @@ const DEFAULTS = () => ({
   accent: ACCENTS[0],
   theme: 'dark', // dark | light
   orient: 'auto', // auto | port | land
+  ha: { mode: 'off', preset: 'pulse', lights: [] }, // light effects: off | boom | tick
 });
 
 function load() {
@@ -46,6 +48,8 @@ function load() {
       Object.assign(d, raw);
       d.cats = Object.assign(DEFAULTS().cats, raw.cats || {});
       if (!Array.isArray(d.names)) d.names = [];
+      d.ha = Object.assign(DEFAULTS().ha, raw.ha || {});
+      if (!Array.isArray(d.ha.lights)) d.ha.lights = [];
     }
   } catch (e) { /* fall back to defaults */ }
   if (!CATS.some((c) => d.cats[c])) d.cats.syllable = true;
@@ -76,6 +80,7 @@ const activeCats = () => CATS.filter((c) => S.cats[c]);
 const playerName = (i) => (S.names[i] && S.names[i].trim()) || t.player(i + 1);
 const namedCount = () => S.names.slice(0, S.players).filter((n) => n && n.trim()).length;
 const otherLang = () => (S.ui === 'de' ? 'en' : 'de');
+const lightsOn = () => ha.linked && S.ha.mode !== 'off' && S.ha.lights.length > 0;
 
 /* ---------- Orientation and sizing ---------- */
 
@@ -146,6 +151,7 @@ const ICON = {
   lock: svg('<rect x="4.5" y="9" width="11" height="7.5" rx="1.5"/><path d="M7 9V6.5a3 3 0 016 0V9"/>'),
   expand: svg('<path d="M3 7V3h4M13 3h4v4M17 13v4h-4M7 17H3v-4"/>'),
   compress: svg('<path d="M7 3v4H3M17 7h-4V3M13 17v-4h4M3 13h4v4"/>'),
+  refresh: svg('<path d="M16 10a6 6 0 11-1.8-4.3"/><path d="M16.2 2.8v3.4h-3.4"/>'),
 };
 
 /* ---------- Fullscreen ---------- */
@@ -261,6 +267,190 @@ function taskRule(task) {
   }
 }
 
+/* ---------- Light effects (Home Assistant) ---------- */
+
+const PRESETS = ['pulse', 'siren', 'fire', 'disco', 'dim'];
+const haForm = { url: '', token: '', useToken: false, error: '', busy: false, testing: false };
+
+function lightsSection() {
+  if (!ha.linked) {
+    return `<section class="block" id="haBlock">
+      <span class="mono muted">${t.haTitle}</span>
+      <p class="small muted">${t.haIntro}</p>
+      <input class="field" type="url" id="haUrl" inputmode="url" autocomplete="url" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" placeholder="https://" value="${esc(haForm.url)}" aria-label="${t.haUrl}">
+      ${haForm.useToken ? `<input class="field" type="password" id="haToken" autocomplete="off" enterkeyhint="go" placeholder="${t.haToken}" value="${esc(haForm.token)}" aria-label="${t.haToken}">` : ''}
+      ${haForm.error ? `<p class="small warn" role="alert">${haForm.error}</p>` : ''}
+      <button class="btn ghost" data-a="haConnect" ${haForm.busy ? 'disabled' : ''}>${haForm.useToken ? t.haConnectToken : t.haConnect}</button>
+      <p class="small muted">${haForm.useToken ? t.haTokenHint : t.haLoginHint}</p>
+      <button class="btn textbtn" data-a="haTokenMode">${haForm.useToken ? t.haUseLogin : t.haUseToken}</button>
+    </section>`;
+  }
+  const n = S.ha.lights.length;
+  const mode = S.ha.mode;
+  const presets = mode === 'tick'
+    ? `<span class="mono muted">${t.haPreset}</span>
+      <div class="chips">${PRESETS.map((p) => `<button class="chip" aria-pressed="${S.ha.preset === p}" data-a="set" data-k="ha.preset" data-v="${p}">${t.haPresets[p]}</button>`).join('')}</div>
+      <p class="small muted">${t.haPresetHint[S.ha.preset]}</p>`
+    : '';
+  const test = mode !== 'off'
+    ? `<button class="btn ghost" data-a="haTest" ${n && !haForm.testing ? '' : 'disabled'}>${t.haTest}</button>
+      ${haForm.error ? `<p class="small warn" role="alert">${haForm.error}</p>` : `<p class="small muted">${t.haTestHint}</p>`}`
+    : '';
+  return `<section class="block" id="haBlock">
+    <span class="mono muted">${t.haTitle}</span>
+    <div class="spread linked">
+      <span class="col"><strong class="clip">${esc(ha.host)}</strong><span class="small muted"><i class="led" id="haLed" data-s="${ha.status}"></i><span id="haStatus">${t.haStatus[ha.status]}</span></span></span>
+      <button class="btn textbtn fit" data-a="haUnlink">${t.haUnlink}</button>
+    </div>
+    ${seg('ha.mode', [['off', t.haOff], ['boom', t.haBoom], ['tick', t.haTick]], mode)}
+    <p class="small muted">${t.haModeHint[mode]}</p>
+    <button class="rowbtn framed" data-a="haPick"><span class="mono muted">${t.haLights}</span><span>${n ? t.haChosen(n) : t.haNone}</span></button>
+    ${presets}
+    ${test}
+  </section>`;
+}
+
+ha.onStatus((s) => {
+  const led = $('#haLed');
+  const label = $('#haStatus');
+  if (led) led.dataset.s = s;
+  if (label) label.textContent = t.haStatus[s];
+});
+
+function showLightsBlock() {
+  const block = $('#haBlock');
+  if (block) block.scrollIntoView({ block: 'start' });
+}
+
+async function haConnect() {
+  if (haForm.busy) return;
+  const url = cleanUrl(haForm.url);
+  haForm.error = '';
+  if (!url) haForm.error = t.haBadUrl;
+  else if (haForm.useToken && !haForm.token.trim()) haForm.error = t.haNoToken;
+  if (haForm.error) { sfx.deny(); render({ keepScroll: true }); return; }
+  if (!haForm.useToken) { ha.login(url); return; }
+  haForm.busy = true;
+  render({ keepScroll: true });
+  try {
+    await ha.linkToken(url, haForm.token.trim());
+    haForm.token = '';
+    if (S.ha.mode === 'off') S.ha.mode = 'boom';
+    save();
+    sfx.on();
+  } catch (e) {
+    haForm.error = t.haTokenFailed;
+    sfx.deny();
+  }
+  haForm.busy = false;
+  if (screen === 'settings') render({ keepScroll: true });
+}
+
+async function haTest() {
+  if (haForm.testing || !lightsOn()) return;
+  haForm.testing = true;
+  haForm.error = '';
+  render({ keepScroll: true });
+  try {
+    await ha.test(S.ha.mode, S.ha.preset, S.ha.lights);
+  } catch (e) {
+    haForm.error = t.haTestFailed;
+    sfx.deny();
+  }
+  haForm.testing = false;
+  if (screen === 'settings') render({ keepScroll: true });
+}
+
+// Light picker. Built for long lists: the list is cached, filtering runs on a
+// prepared lower-case key, and rows are added in pages while scrolling.
+const PAGE = 60;
+let pick = null;
+
+function lightRow(l) {
+  return `<button class="lightrow" role="checkbox" aria-checked="${pick.sel.has(l.id)}" data-a="pickLight" data-id="${esc(l.id)}" data-s="none"><span class="check" aria-hidden="true"></span><span class="col"><span class="clip">${esc(l.name)}</span><span class="small muted clip">${esc(l.area || l.id)}</span></span>${l.color ? '' : `<span class="tag mono">${t.haNoColor}</span>`}</button>`;
+}
+
+function lightCount() {
+  const el = $('#lightCount');
+  if (!el || !pick) return;
+  el.textContent = pick.all.length ? t.haCount(pick.sel.size, pick.view.length, pick.all.length) : '';
+}
+
+function showLights(reset) {
+  const list = $('#lightList');
+  if (!list || !pick) return;
+  if (reset) {
+    pick.shown = 0;
+    list.scrollTop = 0;
+    if (!pick.view.length) {
+      const note = pick.state === 'loading' ? t.haLoading : pick.state === 'error' ? t.haLoadFailed : pick.all.length ? t.haNoMatch : t.haEmpty;
+      list.innerHTML = `<p class="small muted empty">${note}</p>`;
+      lightCount();
+      return;
+    }
+    list.innerHTML = '';
+  }
+  const next = pick.view.slice(pick.shown, pick.shown + PAGE);
+  if (next.length) list.insertAdjacentHTML('beforeend', next.map(lightRow).join(''));
+  pick.shown += next.length;
+  lightCount();
+}
+
+function filterLights(q) {
+  if (!pick) return;
+  pick.q = q;
+  const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
+  pick.view = terms.length ? pick.all.filter((l) => terms.every((w) => l.key.includes(w))) : pick.all;
+  showLights(true);
+}
+
+function setLightList(list) {
+  // Chosen lights first, then by room and name (the order the list arrives in)
+  const chosen = new Set(S.ha.lights);
+  const keyed = list.map((l) => ({ ...l, key: `${l.name} ${l.area} ${l.id}`.toLowerCase() }));
+  pick.all = keyed.filter((l) => chosen.has(l.id)).concat(keyed.filter((l) => !chosen.has(l.id)));
+  pick.state = 'ready';
+  filterLights(pick.q);
+}
+
+async function loadLights() {
+  const mine = pick;
+  const btn = $('[data-a="haRefresh"]');
+  if (btn) btn.classList.add('spin');
+  try {
+    const list = await ha.fetchLights();
+    if (pick !== mine) return;
+    // Forget chosen lights that no longer exist
+    const known = new Set(list.map((l) => l.id));
+    [...pick.sel].forEach((id) => { if (!known.has(id)) pick.sel.delete(id); });
+    S.ha.lights = [...pick.sel];
+    save();
+    setLightList(list);
+  } catch (e) {
+    if (pick !== mine) return;
+    if (!pick.all.length) { pick.state = 'error'; showLights(true); }
+  }
+  const now = $('[data-a="haRefresh"]');
+  if (now) now.classList.remove('spin');
+}
+
+function lightsSheet() {
+  const cached = ha.cachedLights();
+  pick = { all: [], view: [], shown: 0, q: '', sel: new Set(S.ha.lights), state: 'loading' };
+  openSheet(`<div class="spread"><h2 class="title">${t.haPickTitle}</h2><span class="row"><button class="icon" data-a="haRefresh" aria-label="${t.haRefresh}">${ICON.refresh}</button><button class="icon" data-a="closeLights" aria-label="${t.close}">${ICON.close}</button></span></div>
+    <input class="field" type="search" id="lightSearch" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="search" placeholder="${t.haSearch}" aria-label="${t.haSearch}">
+    <p class="small muted" id="lightCount" aria-live="polite"></p>
+    <div class="lightlist" id="lightList"></div>
+    <button class="btn primary portonly" data-a="closeLights">${t.done}</button>`, { modal: true });
+  const list = $('#lightList');
+  list.addEventListener('scroll', () => {
+    if (pick && pick.shown < pick.view.length && list.scrollTop + list.clientHeight > list.scrollHeight - 400) showLights(false);
+  }, { passive: true });
+  if (cached) setLightList(cached.list);
+  else showLights(true);
+  if (!cached || Date.now() - cached.at > 10 * 60 * 1000) loadLights();
+}
+
 /* ---------- Screens ---------- */
 
 const SCREENS = {
@@ -374,6 +564,7 @@ const SCREENS = {
         <span class="mono muted">${t.setColor}</span>
         <div class="swatches">${ACCENTS.map((c, i) => `<button class="swatch" style="--c:${c}" aria-pressed="${S.accent === c}" aria-label="${t.color} ${i + 1}" data-a="set" data-k="accent" data-v="${c}"></button>`).join('')}</div>
       </section>
+      ${lightsSection()}
     </main>`;
   },
 
@@ -534,7 +725,9 @@ function render(opts = {}) {
 
 function go(to, opts) {
   screen = to;
+  if (to !== 'settings') haForm.error = '';
   render(opts);
+  if (to === 'settings' && ha.linked) ha.connect().catch(() => {});
 }
 
 function countUp() {
@@ -681,6 +874,7 @@ function startGame(scoring) {
     lastCat: null,
   };
   wake();
+  if (lightsOn()) ha.connect().catch(() => {});
   try { history.pushState({ peng: 1 }, ''); } catch (e) { /* ignore */ }
   nextRound();
 }
@@ -831,6 +1025,7 @@ function ignite() {
 
 function light(bomb) {
   sfx.ignite();
+  if (lightsOn()) ha.arm(S.ha.lights); // remember how the lights are before any effect
   const stage = $('#bombStage');
   if (stage) stage.classList.add('lit');
   setTimeout(() => { if (B === bomb && !bomb.running && screen === 'bomb' && sheetEl.hidden) startBomb(); }, 750);
@@ -841,6 +1036,7 @@ function startBomb() {
   B.running = true;
   B.t0 = performance.now();
   B.boomTimer = setTimeout(explode, B.left);
+  ha.resetTick();
   tickLoop(0);
 }
 
@@ -849,6 +1045,7 @@ function tickLoop(delay) {
     if (!B || !B.running) return;
     B.alt = !B.alt;
     sfx.tick(B.alt);
+    if (S.ha.mode === 'tick') ha.tick(S.ha.preset);
     const stage = $('#bombStage');
     if (stage) {
       stage.classList.remove('pulse');
@@ -877,6 +1074,7 @@ function pauseBomb() {
   stopBombTimers();
   B.left = Math.max(400, B.left - (performance.now() - B.t0));
   sfx.pause();
+  ha.pause();
   pauseSheet();
 }
 
@@ -895,6 +1093,7 @@ function explode() {
   B = null;
   closeSheet(true, true);
   sfx.boom();
+  ha.boom();
   go('boom');
 }
 
@@ -927,6 +1126,9 @@ function setValue(k, v) {
     if (v !== 'both') S.ui = v;
   } else if (['accent', 'pick', 'diff', 'ignite', 'theme', 'orient'].includes(k)) {
     S[k] = v;
+  } else if (k === 'ha.mode' || k === 'ha.preset') {
+    S.ha[k.slice(3)] = v;
+    haForm.error = '';
   }
   save();
   applySettings();
@@ -998,6 +1200,7 @@ const ACTIONS = {
   abortRound() {
     stopBombTimers();
     B = null;
+    ha.release();
     closeSheet(true, true);
     nextRound();
   },
@@ -1006,6 +1209,7 @@ const ACTIONS = {
     stopBombTimers();
     B = null;
     G = null;
+    ha.release();
     rolling = false;
     unwake();
     closeSheet(true, true);
@@ -1036,6 +1240,38 @@ const ACTIONS = {
   },
   nocount() { nextRound(); },
   again() { startGame(true); },
+
+  haConnect() { haConnect(); },
+  haTokenMode() {
+    haForm.useToken = !haForm.useToken;
+    haForm.error = '';
+    render({ keepScroll: true });
+  },
+  haUnlink() {
+    ha.unlink();
+    S.ha.lights = []; // they belong to the instance that was just disconnected
+    save();
+    haForm.error = '';
+    render({ keepScroll: true });
+  },
+  haPick() { lightsSheet(); },
+  haRefresh() { loadLights(); },
+  haTest() { haTest(); },
+  pickLight(el) {
+    const id = el.dataset.id;
+    const on = !pick.sel.has(id);
+    if (on) pick.sel.add(id); else pick.sel.delete(id);
+    el.setAttribute('aria-checked', String(on));
+    (on ? sfx.on : sfx.off)();
+    S.ha.lights = [...pick.sel];
+    save();
+    lightCount();
+  },
+  closeLights() {
+    pick = null;
+    closeSheet(true);
+    render({ keepScroll: true });
+  },
 };
 
 const SOUNDS = { nav: sfx.nav, back: sfx.backNav, none: null };
@@ -1066,16 +1302,23 @@ document.addEventListener('input', (e) => {
     dual.style.setProperty('--a', (S.tmin - 5) / 115);
     dual.style.setProperty('--b', (S.tmax - 5) / 115);
     $('#fuseVal').textContent = `${S.tmin} – ${S.tmax} s`;
-    $$('.chip').forEach((c) => c.setAttribute('aria-pressed', String(Number(c.dataset.lo) === S.tmin && Number(c.dataset.hi) === S.tmax)));
+    $$('.chip[data-lo]').forEach((c) => c.setAttribute('aria-pressed', String(Number(c.dataset.lo) === S.tmin && Number(c.dataset.hi) === S.tmax)));
   } else if (el.matches('[data-name]')) {
     S.names[Number(el.dataset.name)] = el.value;
+  } else if (el.id === 'haUrl') {
+    haForm.url = el.value;
+  } else if (el.id === 'haToken') {
+    haForm.token = el.value;
+  } else if (el.id === 'lightSearch') {
+    filterLights(el.value.trim());
   }
 });
 document.addEventListener('change', (e) => {
   if (e.target.matches('.dual input, [data-name]')) save();
 });
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && e.target.matches('[data-name]')) e.target.blur();
+  if (e.key === 'Enter' && e.target.matches('[data-name], #lightSearch')) e.target.blur();
+  if (e.key === 'Enter' && e.target.matches('#haUrl, #haToken')) { e.target.blur(); haConnect(); }
   if (e.key === 'Escape' && !sheetEl.hidden) closeSheet();
 });
 document.addEventListener('contextmenu', (e) => {
@@ -1096,6 +1339,22 @@ applySettings();
 layout();
 render();
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => fitAll());
+
+// Back from the Home Assistant login page, or lights left mid-effect by a closed tab
+ha.finishLogin().then((back) => {
+  if (!back) { ha.recover(); return; }
+  if (back.ok) {
+    if (S.ha.mode === 'off') S.ha.mode = 'boom';
+    save();
+  } else {
+    haForm.url = back.url;
+    haForm.error = t.haLoginFailed;
+  }
+  if (G) return;
+  go('settings');
+  showLightsBlock();
+  if (back.ok && !S.ha.lights.length) lightsSheet();
+});
 
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
   navigator.serviceWorker.register('./sw.js').catch(() => {});

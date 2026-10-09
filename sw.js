@@ -1,13 +1,15 @@
 // Offline cache. Bump the version number whenever the game changes.
-const VERSION = 'peng-v2';
+const VERSION = 'peng-v3';
 const FONT_HOST = 'fonts.bunny.net';
 const FILES = [
   './',
   'index.html',
   'manifest.webmanifest',
   'css/style.css',
+  'css/lights.css',
   'js/app.js',
   'js/audio.js',
+  'js/ha.js',
   'js/i18n.js',
   'js/tasks.js',
   'data/syllables.js',
