@@ -35,8 +35,26 @@ The dice pick the category, or you choose it yourselves before every round.
 - Ignition: automatic after "Ready", or by button.
 - Rounds, sound, vibration (Android only), safe rule.
 - Appearance: dark or light background, accent colour, orientation. "Landscape" rotates the game even with rotation lock on.
+- Light effects: optional, through your own Home Assistant (see below).
 
 Everything is stored in the browser. After the first load the game also works offline and can be added to the home screen.
+
+## Light effects (Home Assistant)
+
+Real lamps can join in. In the settings, enter the address of your Home Assistant, sign in, and choose the lights.
+
+| Mode | What happens |
+|---|---|
+| Bang | When the bomb goes off the lights flash white and red, then return to how they were. |
+| Ticking | The lights already react while the bomb ticks (presets: pulse, siren, fuse, disco, dark red) and go off with it at the end. |
+
+How it works:
+
+- The address has to be reachable over `https`, because the game itself is served over https.
+- Sign-in uses the normal Home Assistant login page. Alternatively, paste a long-lived access token from your Home Assistant profile.
+- The game talks straight to your Home Assistant over its WebSocket API. Nothing passes through a server of this project, and the access token is stored only in the browser of that device.
+- Before the first effect of a round the game asks Home Assistant to snapshot the chosen lights (`scene.create`) and restores that snapshot afterwards (`scene.turn_on`). If the page is closed in the middle of an effect, the lights are put back the next time the game opens.
+- Tick effects are limited to roughly two commands per second. A few lights or one light group respond fastest.
 
 ## Adding content
 
@@ -62,9 +80,11 @@ Plain HTML, CSS and JavaScript with no build step. A simple local server is enou
 |---|---|
 | `index.html` | Page skeleton |
 | `css/style.css` | Design |
+| `css/lights.css` | Styles for the light effects settings and the light picker |
 | `js/app.js` | Screens and game flow |
 | `js/tasks.js` | Reads `data/` and draws tasks without repeats |
 | `js/audio.js` | All sounds, synthesised in the browser (no audio files) |
+| `js/ha.js` | Home Assistant link: sign-in, light list, light effects |
 | `js/i18n.js` | UI copy in German and English |
 | `sw.js`, `manifest.webmanifest` | Offline cache and installation |
 

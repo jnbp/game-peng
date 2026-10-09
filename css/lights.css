@@ -1,0 +1,91 @@
+/* Light effects: the Home Assistant link in the settings and the light picker */
+
+body { --warn: #FF6B4A; --ok: #3DDC84; }
+body[data-look='light'] { --warn: #B3261E; --ok: #1B8A4B; }
+
+.field {
+  width: 100%;
+  height: 48px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line2);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  -webkit-appearance: none;
+  appearance: none;
+  -webkit-user-select: text;
+  user-select: text;
+  transition: border-color 0.15s;
+}
+.field::placeholder { color: var(--muted); opacity: 0.7; }
+.field:focus { outline: none; border-color: var(--mark); }
+.field::-webkit-search-cancel-button { -webkit-appearance: none; }
+.settings .field { background: var(--surface); }
+
+.warn { color: var(--warn); }
+.clip { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.btn.fit { flex: none; width: auto; padding: 0 2px; }
+.rowbtn.framed { width: 100%; border-top: 1px solid var(--line); }
+
+.linked { min-height: 48px; }
+.linked strong { font-size: 17px; font-weight: 600; }
+.led { display: inline-block; width: 8px; height: 8px; margin-right: 7px; border-radius: 50%; background: var(--muted); }
+.led[data-s='online'] { background: var(--ok); }
+.led[data-s='offline'], .led[data-s='denied'] { background: var(--warn); }
+.led[data-s='connecting'] { animation: ledblink 0.8s ease-in-out infinite; }
+@keyframes ledblink { 50% { opacity: 0.25; } }
+
+/* ---------- Light picker ---------- */
+
+.lightlist {
+  height: calc(var(--H) * 0.46);
+  min-height: 150px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+/* Landscape is short: the close button in the header is enough there */
+body.land .lightlist { height: calc(var(--H) * 0.9 - 202px); min-height: 110px; }
+body.land .panel .portonly { display: none; }
+/* Rows off screen are skipped by the browser until they scroll into view */
+.lightrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  padding: 6px 2px;
+  border-bottom: 1px solid var(--line);
+  content-visibility: auto;
+  contain-intrinsic-size: auto 56px;
+}
+.lightrow:last-child { border-bottom: 0; }
+.lightrow .col { flex: 1; }
+.lightrow:active { background: var(--bg); }
+.check {
+  flex: none;
+  position: relative;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  border: 1.5px solid var(--line2);
+  transition: background-color 0.15s, border-color 0.15s, transform 0.2s var(--pop);
+}
+.lightrow[aria-checked='true'] .check { background: var(--accent); border-color: var(--accent); transform: scale(1.08); }
+.lightrow[aria-checked='true'] .check::after {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 3px;
+  width: 6px;
+  height: 11px;
+  border: solid var(--ink);
+  border-width: 0 2.5px 2.5px 0;
+  transform: rotate(45deg);
+}
+.lightlist .empty { padding: 32px 8px; text-align: center; }
+.spin svg { animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
