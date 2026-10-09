@@ -1,0 +1,15 @@
+{
+  "name": "Peng",
+  "short_name": "Peng",
+  "description": "The ticking-bomb word game. One phone is all you need.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0C0C0E",
+  "theme_color": "#0C0C0E",
+  "lang": "en",
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
