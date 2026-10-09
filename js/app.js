@@ -144,7 +144,40 @@ const ICON = {
   info: svg('<circle cx="10" cy="10" r="7.5"/><path d="M10 9v5"/><circle cx="10" cy="6.2" r="0.6" fill="currentColor"/>'),
   help: svg('<circle cx="10" cy="10" r="7.5"/><path d="M7.8 7.8a2.3 2.3 0 114 1.6c-.9.8-1.8 1.2-1.8 2.4"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor"/>'),
   lock: svg('<rect x="4.5" y="9" width="11" height="7.5" rx="1.5"/><path d="M7 9V6.5a3 3 0 016 0V9"/>'),
+  expand: svg('<path d="M3 7V3h4M13 3h4v4M17 13v4h-4M7 17H3v-4"/>'),
+  compress: svg('<path d="M7 3v4H3M17 7h-4V3M13 17v-4h4M3 13h4v4"/>'),
 };
+
+/* ---------- Fullscreen ---------- */
+
+// Not every browser offers this (iPhone Safari does not); the button is hidden there.
+const fsElement = () => document.fullscreenElement || document.webkitFullscreenElement || null;
+const fsAvailable = () => Boolean(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+const fsButton = () => (fsAvailable()
+  ? `<button class="icon" data-a="fullscreen" aria-pressed="${Boolean(fsElement())}" aria-label="${fsElement() ? t.fullscreenOff : t.fullscreenOn}">${fsElement() ? ICON.compress : ICON.expand}</button>`
+  : '');
+function toggleFullscreen() {
+  try {
+    if (fsElement()) {
+      (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    } else {
+      const el = document.documentElement;
+      const done = (el.requestFullscreen || el.webkitRequestFullscreen).call(el, { navigationUI: 'hide' });
+      if (done && done.catch) done.catch(() => {});
+    }
+  } catch (e) { /* ignore */ }
+}
+// Update the buttons in place so a running animation or roll is not interrupted
+function syncFullscreen() {
+  const on = Boolean(fsElement());
+  $$('[data-a="fullscreen"]').forEach((b) => {
+    b.innerHTML = on ? ICON.compress : ICON.expand;
+    b.setAttribute('aria-pressed', String(on));
+    b.setAttribute('aria-label', on ? t.fullscreenOff : t.fullscreenOn);
+  });
+}
+document.addEventListener('fullscreenchange', syncFullscreen);
+document.addEventListener('webkitfullscreenchange', syncFullscreen);
 
 /* ---------- Game state ---------- */
 
@@ -182,7 +215,7 @@ function gameHeader() {
   const starter = G.scoring ? `<span class="starter"><span class="muted">${t.startsWith}</span> <strong>${esc(playerName(G.starter))}</strong></span>` : '';
   return `<header class="top">
     <span class="col"><span class="mono muted">${t.round(G.round, G.total)}</span>${starter}</span>
-    <button class="icon" data-a="quit" aria-label="${t.quit}">${ICON.close}</button>
+    <span class="row">${fsButton()}<button class="icon" data-a="quit" aria-label="${t.quit}">${ICON.close}</button></span>
   </header>`;
 }
 
@@ -238,6 +271,7 @@ const SCREENS = {
       <header class="top">
         <span class="mono muted">${t.tag}</span>
         <span class="row">
+          ${fsButton()}
           <button class="icon" data-a="rules" aria-label="${t.howto}">${ICON.help}</button>
           <button class="icon" data-a="go" data-to="settings" data-s="nav" aria-label="${t.settings}">${ICON.sliders}</button>
         </span>
@@ -902,6 +936,7 @@ function setValue(k, v) {
 
 const ACTIONS = {
   go(el) { closeSheet(true, true); go(el.dataset.to); },
+  fullscreen() { toggleFullscreen(); },
   rules() { rulesSheet(); },
   info(el) { infoSheet(el.dataset.cat); },
   players() { playersSheet(); },
