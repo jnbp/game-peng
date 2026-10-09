@@ -55,7 +55,9 @@ function load() {
   if (!CATS.some((c) => d.cats[c])) d.cats.syllable = true;
   return d;
 }
+let wiping = false; // set while all local data is being deleted: nothing may be written back
 function save() {
+  if (wiping) return;
   try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* private mode */ }
 }
 
@@ -565,6 +567,11 @@ const SCREENS = {
         <div class="swatches">${ACCENTS.map((c, i) => `<button class="swatch" style="--c:${c}" aria-pressed="${S.accent === c}" aria-label="${t.color} ${i + 1}" data-a="set" data-k="accent" data-v="${c}"></button>`).join('')}</div>
       </section>
       ${lightsSection()}
+      <section class="block">
+        <span class="mono muted">${t.dataTitle}</span>
+        <button class="btn ghost warn" data-a="wipeAsk">${t.wipe}</button>
+        <p class="small muted">${t.wipeHint}</p>
+      </section>
     </main>`;
   },
 
@@ -817,6 +824,32 @@ function quitSheet() {
   openSheet(`<h2 class="title">${t.quitAsk}</h2>
     <button class="btn primary" data-a="closeSheet" data-force="1">${t.quitNo}</button>
     <button class="btn ghost" data-a="home" data-s="back">${t.quitYes}</button>`);
+}
+
+function wipeSheet() {
+  openSheet(`<h2 class="title">${t.wipeAsk}</h2>
+    <p class="muted">${t.wipeAskHint}</p>
+    <button class="btn primary" data-a="closeSheet" data-force="1">${t.wipeNo}</button>
+    <button class="btn ghost warn" data-a="wipe" data-s="none">${t.wipeYes}</button>`);
+}
+
+// Delete everything this site has stored on the device, then start over like a first visit
+async function wipeData() {
+  if (wiping) return;
+  wiping = true;
+  openSheet(`<h2 class="title">${t.wiping}</h2>`, { modal: true, quiet: true });
+  const linked = ha.linked;
+  if (linked) ha.unlink(); // puts lights back and withdraws the access at Home Assistant
+  try { localStorage.clear(); } catch (e) { /* ignore */ }
+  try { sessionStorage.clear(); } catch (e) { /* ignore */ }
+  try {
+    if ('caches' in window) await Promise.all((await caches.keys()).map((k) => caches.delete(k)));
+  } catch (e) { /* ignore */ }
+  try {
+    if ('serviceWorker' in navigator) await Promise.all((await navigator.serviceWorker.getRegistrations()).map((r) => r.unregister()));
+  } catch (e) { /* ignore */ }
+  if (linked) await sleep(800); // let the sign-out reach Home Assistant before the page reloads
+  location.replace(location.pathname);
 }
 
 function pauseSheet() {
@@ -1240,6 +1273,9 @@ const ACTIONS = {
   },
   nocount() { nextRound(); },
   again() { startGame(true); },
+
+  wipeAsk() { wipeSheet(); },
+  wipe() { wipeData(); },
 
   haConnect() { haConnect(); },
   haTokenMode() {

@@ -121,6 +121,15 @@ export const TEXT = {
     haEmpty: 'In diesem Home Assistant gibt es keine Lichter.',
     haNoColor: 'OHNE FARBE',
 
+    dataTitle: 'DATEN',
+    wipe: 'Alle lokalen Daten löschen',
+    wipeHint: 'Entfernt alles, was diese Seite auf diesem Gerät gespeichert hat: Einstellungen, Spielernamen, die Home-Assistant-Verknüpfung und die Offline-Kopie des Spiels.',
+    wipeAsk: 'Wirklich alles löschen?',
+    wipeAskHint: 'Einstellungen, Spielernamen und die Home-Assistant-Verknüpfung sind danach weg. Das Spiel startet neu wie beim ersten Besuch.',
+    wipeYes: 'Ja, alles löschen',
+    wipeNo: 'Abbrechen',
+    wiping: 'Wird gelöscht …',
+
     round: (a, b) => (b ? `RUNDE ${a} / ${b}` : `RUNDE ${a}`),
     startsWith: 'Start bei',
     roll: 'WÜRFELN',
@@ -393,6 +402,15 @@ export const TEXT = {
     haNoMatch: 'Nothing found.',
     haEmpty: 'This Home Assistant has no lights.',
     haNoColor: 'NO COLOUR',
+
+    dataTitle: 'DATA',
+    wipe: 'Delete all local data',
+    wipeHint: 'Removes everything this site has stored on this device: settings, player names, the Home Assistant link and the offline copy of the game.',
+    wipeAsk: 'Really delete everything?',
+    wipeAskHint: 'Settings, player names and the Home Assistant link will be gone. The game restarts as on a first visit.',
+    wipeYes: 'Yes, delete everything',
+    wipeNo: 'Cancel',
+    wiping: 'Deleting …',
 
     round: (a, b) => (b ? `ROUND ${a} / ${b}` : `ROUND ${a}`),
     startsWith: 'Starting with',

@@ -37,7 +37,7 @@ The dice pick the category, or you choose it yourselves before every round.
 - Appearance: dark or light background, accent colour, orientation. "Landscape" rotates the game even with rotation lock on.
 - Light effects: optional, through your own Home Assistant (see below).
 
-Everything is stored in the browser. After the first load the game also works offline and can be added to the home screen.
+Everything is stored in the browser. After the first load the game also works offline and can be added to the home screen. "Delete all local data" at the bottom of the settings removes all of it again, including the Home Assistant link and the offline copy.
 
 ## Light effects (Home Assistant)
 
