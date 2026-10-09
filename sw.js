@@ -1,5 +1,5 @@
 // Offline cache. Bump the version number whenever the game changes.
-const VERSION = 'peng-v3';
+const VERSION = 'peng-v4';
 const FONT_HOST = 'fonts.bunny.net';
 const FILES = [
   './',
@@ -20,8 +20,13 @@ const FILES = [
   'icons/icon.svg',
 ];
 
+// Fetch every file past the browser's HTTP cache, so one version never mixes with another
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(VERSION).then((c) => c.addAll(FILES)).then(() => self.skipWaiting()));
+  e.waitUntil(
+    caches.open(VERSION)
+      .then((c) => c.addAll(FILES.map((f) => new Request(f, { cache: 'reload' }))))
+      .then(() => self.skipWaiting()),
+  );
 });
 
 self.addEventListener('activate', (e) => {
@@ -41,9 +46,10 @@ self.addEventListener('fetch', (e) => {
   e.respondWith(
     caches.open(VERSION).then(async (cache) => {
       const hit = await cache.match(req, { ignoreSearch: own });
-      const fresh = fetch(req)
+      const fresh = fetch(req, own ? { cache: 'no-cache' } : undefined)
         .then((res) => {
-          if (res && (res.ok || res.type === 'opaque')) cache.put(req, res.clone());
+          // Addresses with a query (test fuse, sign-in return) are served but never stored
+          if (res && (res.ok || res.type === 'opaque') && !(own && url.search)) cache.put(req, res.clone());
           return res;
         })
         .catch(() => hit);
