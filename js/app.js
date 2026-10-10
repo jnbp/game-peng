@@ -669,7 +669,7 @@ const SCREENS = {
     const last = G.scoring && G.round >= G.total;
     const many = S.players > 5;
     const players = G.scoring
-      ? `<div class="who stagger ${many ? 'grid' : ''}">${G.scores.map((p, i) => `<button class="player" aria-pressed="false" data-a="blame" data-i="${i}" data-s="none"><span>${esc(playerName(i))}</span><span class="mono pts">${many ? p : t.points(p)}</span></button>`).join('')}</div>`
+      ? `<div class="who stagger ${many ? 'grid' : ''}"${S.players > 12 ? ' style="grid-template-columns:repeat(3,minmax(0,1fr))"' : ''}>${G.scores.map((p, i) => `<button class="player" aria-pressed="false" data-a="blame" data-i="${i}" data-s="none"><span>${esc(playerName(i))}</span><span class="mono pts">${many ? p : t.points(p)}</span></button>`).join('')}</div>`
       : '';
     const debris = Array.from({ length: 22 }, () => `<i class="p" style="--a:${rnd(360)}deg;--d:${120 + rnd(420)}px;--s:${5 + rnd(13)}px;--t:${600 + rnd(700)}ms"></i>`).join('');
     return `<main class="screen boom">
@@ -1199,7 +1199,7 @@ const ACTIONS = {
   step(el) {
     const k = el.dataset.k;
     const d = Number(el.dataset.d);
-    const [lo, hi] = k === 'players' ? [2, 12] : [3, 30];
+    const [lo, hi] = k === 'players' ? [2, 20] : [3, 30];
     const v = Math.min(hi, Math.max(lo, S[k] + d));
     if (v === S[k]) { sfx.deny(); return; }
     S[k] = v;
