@@ -1,6 +1,9 @@
 // All UI copy, in German (de) and English (en). Tasks live in data/.
 
-export const CATS = ['syllable', 'famous', 'question', 'compound', 'scramble', 'chain'];
+// The original six are on by default; the extra pack is optional
+export const BASE_CATS = ['syllable', 'famous', 'question', 'compound', 'scramble', 'chain'];
+export const EXTRA_CATS = ['rhyme', 'letter', 'alphabet', 'without', 'count', 'story'];
+export const CATS = [...BASE_CATS, ...EXTRA_CATS];
 
 export const TEXT = {
   de: {
@@ -12,6 +15,15 @@ export const TEXT = {
     rowLang: 'SPRACHE',
     start: 'Spiel starten',
     quick: 'Schnellrunde ohne Punkte',
+    savedGame: 'LAUFENDES SPIEL',
+    savedInfo: (a, b, n) => `Runde ${a} von ${b} · ${n} Spieler`,
+    resumeGame: 'Weiterspielen',
+    newGame: 'Spiel löschen und neu beginnen',
+    newGameAsk: 'Laufendes Spiel löschen?',
+    newGameHint: 'Der Punktestand geht verloren. Danach startet ein neues Spiel mit den aktuellen Einstellungen.',
+    newGameYes: 'Ja, löschen und neu beginnen',
+    newGameNo: 'Abbrechen',
+    quitSaved: 'Der Spielstand bleibt gespeichert. Auf der Startseite kannst du später weiterspielen.',
     howto: 'Spielregeln',
     settings: 'Einstellungen',
     fullscreenOn: 'Vollbild',
@@ -38,6 +50,11 @@ export const TEXT = {
     more: 'Mehr',
 
     catsTitle: 'KATEGORIEN',
+    catsBase: 'ORIGINAL',
+    catsExtra: 'EXTRA-PACK',
+    catsExtraHint: 'Neue Spielarten zum Dazuschalten. Sie mischen sich mit den aktiven Original-Kategorien.',
+    extraAll: 'Alle an',
+    extraNone: 'Alle aus',
     whoPicks: 'WER BESTIMMT DIE KATEGORIE?',
     pickDiceHint: 'Der Würfel entscheidet jede Runde unter den aktiven Kategorien.',
     pickChooseHint: 'Ihr sucht euch vor jeder Runde selbst eine aktive Kategorie aus.',
@@ -160,6 +177,15 @@ export const TEXT = {
       letter: 'Dein Wort beginnt mit dem letzten Buchstaben des vorigen',
       compound: 'Das Ende wird zum Anfang: Haustür, Türschloss, Schlossgarten',
     },
+    ruleRhyme: 'Sag ein Wort, das sich darauf reimt',
+    ruleLetter: (l) => `Etwas, das dazu passt und mit ${l} beginnt`,
+    ruleAlphabet: 'Reihum nach dem Alphabet: A, B, C … Q, X und Y dürft ihr überspringen',
+    ruleWithout: (l) => `Passendes Wort, aber ohne den Buchstaben ${l}`,
+    ruleCount: (n, down) => (down
+      ? `Rückwärts ab 100 zählen. Statt jeder Zahl mit ${n} oder durch ${n} teilbar: „Peng!“`
+      : `Reihum ab 1 zählen. Statt jeder Zahl mit ${n} oder durch ${n} teilbar: „Peng!“`),
+    ruleStory: 'Reihum genau ein Wort anhängen',
+    without: 'OHNE',
     startWord: 'STARTWORT',
 
     ready: 'BEREIT',
@@ -195,6 +221,12 @@ export const TEXT = {
       compound: 'Baut zusammengesetzte Wörter. Das gezeigte Wort darf vorne oder hinten stehen.',
       scramble: 'Bildet aus den Buchstaben Wörter mit mindestens vier Buchstaben.',
       chain: 'Ihr bekommt ein Startwort. Jedes neue Wort muss an das vorige anschließen.',
+      rhyme: 'Nennt reihum Wörter, die sich auf das gezeigte Wort reimen. Ausgedachte Wörter zählen nicht.',
+      letter: 'Nennt reihum etwas aus dem Thema, das mit dem gezeigten Buchstaben beginnt.',
+      alphabet: 'Nennt reihum etwas aus dem Thema, der Erste mit A, der Nächste mit B und so weiter.',
+      without: 'Nennt reihum etwas aus dem Thema. Der gezeigte Buchstabe darf nicht darin vorkommen.',
+      count: 'Zählt reihum. Bei jeder Zahl, in der die Ziffer steckt oder die durch sie teilbar ist, ruft ihr „Peng!“',
+      story: 'Erzählt gemeinsam eine Geschichte. Jeder hängt genau ein Wort an den Satz an.',
     },
     ticking: (n, name) => `RUNDE ${n} · ${name}`,
     pass: 'Wort sagen, Handy weitergeben.',
@@ -282,6 +314,54 @@ export const TEXT = {
           'Wer die Kette nicht fortsetzen kann, behält das Handy, bis ihm etwas einfällt.',
         ],
       },
+      rhyme: {
+        name: 'Reim',
+        short: 'Wort, das sich auf das gezeigte Wort reimt.',
+        long: [
+          'Ihr bekommt ein Wort und nennt reihum Wörter, die sich darauf reimen: HAUS, Maus, raus, Klaus.',
+          'Es zählen nur echte Wörter und Namen. Ob ein Reim gilt, entscheidet die Runde.',
+        ],
+      },
+      letter: {
+        name: 'Anfang',
+        short: 'Etwas zum Thema, das mit dem Buchstaben beginnt.',
+        long: [
+          'Ihr bekommt ein Thema und einen Buchstaben, etwa Tiere und B. Nennt reihum etwas, das passt: Bär, Biber, Biene.',
+          'Wie Stadt, Land, Fluss, nur schneller. Jede Antwort gilt nur einmal.',
+        ],
+      },
+      alphabet: {
+        name: 'ABC',
+        short: 'Reihum zum Thema, Buchstabe für Buchstabe durchs Alphabet.',
+        long: [
+          'Ihr bekommt ein Thema. Der Erste nennt etwas mit A, der Nächste mit B, dann C und so weiter.',
+          'Q, X und Y dürft ihr überspringen. Nach Z geht es wieder bei A los. Merkt euch gut, welcher Buchstabe dran ist.',
+        ],
+      },
+      without: {
+        name: 'Ohne',
+        short: 'Etwas zum Thema, aber ohne den gezeigten Buchstaben.',
+        long: [
+          'Ihr bekommt ein Thema und einen verbotenen Buchstaben, etwa Tiere ohne E. Hund zählt, Elefant nicht.',
+          'Je häufiger der Buchstabe, desto schwerer. Wer aus Versehen ein verbotenes Wort sagt, muss gleich noch eins nennen.',
+        ],
+      },
+      count: {
+        name: 'Zählen',
+        short: 'Reihum zählen, bestimmte Zahlen werden zu „Peng!“.',
+        long: [
+          'Ihr zählt reihum ab 1, jeder sagt die nächste Zahl. Bei 7 heißt das: Statt 7, 14, 17, 21 und 27 ruft ihr „Peng!“.',
+          'Wer sich verzählt oder „Peng!“ vergisst, fängt wieder bei 1 an und behält das Handy. Auf „Schwer“ wird manchmal rückwärts ab 100 gezählt.',
+        ],
+      },
+      story: {
+        name: 'Geschichte',
+        short: 'Gemeinsam eine Geschichte erzählen, jeder ein Wort.',
+        long: [
+          'Ihr bekommt einen Satzanfang. Reihum hängt jeder genau ein Wort an, sodass ein Satz entsteht, und dann der nächste.',
+          'Der Satz muss grammatisch weiterlaufen. Wer zögert oder Unsinn sagt, der nicht passt, behält das Handy.',
+        ],
+      },
     },
   },
 
@@ -294,6 +374,15 @@ export const TEXT = {
     rowLang: 'LANGUAGE',
     start: 'Start game',
     quick: 'Quick round, no points',
+    savedGame: 'GAME IN PROGRESS',
+    savedInfo: (a, b, n) => `Round ${a} of ${b} · ${n} players`,
+    resumeGame: 'Keep playing',
+    newGame: 'Delete game and start over',
+    newGameAsk: 'Delete the current game?',
+    newGameHint: 'The score will be lost. A new game then starts with the current settings.',
+    newGameYes: 'Yes, delete and start over',
+    newGameNo: 'Cancel',
+    quitSaved: 'The score is saved. You can carry on later from the start screen.',
     howto: 'How to play',
     settings: 'Settings',
     fullscreenOn: 'Fullscreen',
@@ -320,6 +409,11 @@ export const TEXT = {
     more: 'More',
 
     catsTitle: 'CATEGORIES',
+    catsBase: 'ORIGINAL',
+    catsExtra: 'EXTRA PACK',
+    catsExtraHint: 'New ways to play that you can switch on. They mix with the active original categories.',
+    extraAll: 'All on',
+    extraNone: 'All off',
     whoPicks: 'WHO PICKS THE CATEGORY?',
     pickDiceHint: 'The dice pick one of the active categories every round.',
     pickChooseHint: 'You pick one of the active categories yourselves before every round.',
@@ -442,6 +536,15 @@ export const TEXT = {
       letter: 'Your word starts with the last letter of the previous one',
       compound: 'The end becomes the start: doorbell, bellboy, boyfriend',
     },
+    ruleRhyme: 'Say a word that rhymes with it',
+    ruleLetter: (l) => `Something that fits and starts with ${l}`,
+    ruleAlphabet: 'Take turns through the alphabet: A, B, C … you may skip Q, X and Y',
+    ruleWithout: (l) => `A fitting word, but without the letter ${l}`,
+    ruleCount: (n, down) => (down
+      ? `Count down from 100. Instead of any number with ${n} in it or divisible by ${n}: "Peng!"`
+      : `Count up from 1 in turn. Instead of any number with ${n} in it or divisible by ${n}: "Peng!"`),
+    ruleStory: 'Add exactly one word each',
+    without: 'WITHOUT',
     startWord: 'FIRST WORD',
 
     ready: 'READY',
@@ -477,6 +580,12 @@ export const TEXT = {
       compound: 'Build compound words. The word shown may go in front or behind.',
       scramble: 'Make words of at least four letters from the letters shown.',
       chain: 'You get a first word. Every new word has to connect to the one before.',
+      rhyme: 'Take turns naming words that rhyme with the word shown. Made-up words do not count.',
+      letter: 'Take turns naming something from the topic that starts with the letter shown.',
+      alphabet: 'Take turns naming something from the topic, the first with A, the next with B and so on.',
+      without: 'Take turns naming something from the topic. The letter shown must not appear in it.',
+      count: 'Count in turn. For every number that contains the digit or is divisible by it, shout "Peng!"',
+      story: 'Tell a story together. Everyone adds exactly one word to the sentence.',
     },
     ticking: (n, name) => `ROUND ${n} · ${name}`,
     pass: 'Say a word, pass the phone.',
@@ -562,6 +671,54 @@ export const TEXT = {
           'You get a first word and a rule. Every new word has to connect to the word before it.',
           'Depending on difficulty: the word goes with the previous one (house, door, key), it starts with the last letter of the previous one (house, egg, garden), or the end becomes the start (doorbell, bellboy, boyfriend).',
           'If you cannot continue the chain, you keep the phone until something comes to mind.',
+        ],
+      },
+      rhyme: {
+        name: 'Rhyme',
+        short: 'A word that rhymes with the word shown.',
+        long: [
+          'You get a word and take turns naming words that rhyme with it: CAT, hat, flat, that.',
+          'Only real words and names count. The group decides whether a rhyme is good enough.',
+        ],
+      },
+      letter: {
+        name: 'Starts with',
+        short: 'Something from the topic that starts with the letter.',
+        long: [
+          'You get a topic and a letter, such as animals and B. Take turns naming something that fits: bear, beaver, bee.',
+          'Like Scattergories, only faster. Every answer counts only once.',
+        ],
+      },
+      alphabet: {
+        name: 'ABC',
+        short: 'Take turns on a topic, letter by letter through the alphabet.',
+        long: [
+          'You get a topic. The first player names something with A, the next with B, then C and so on.',
+          'You may skip Q, X and Y. After Z it starts again at A. Keep track of whose letter is next.',
+        ],
+      },
+      without: {
+        name: 'Without',
+        short: 'Something from the topic, but without the letter shown.',
+        long: [
+          'You get a topic and a banned letter, such as animals without E. Dog counts, elephant does not.',
+          'The more common the letter, the harder it gets. Say a banned word by mistake and you have to name another one.',
+        ],
+      },
+      count: {
+        name: 'Count',
+        short: 'Count in turn, certain numbers become "Peng!".',
+        long: [
+          'Count up from 1, each player saying the next number. With 7 that means: instead of 7, 14, 17, 21 and 27 you shout "Peng!".',
+          'Miscount or forget the "Peng!" and you start again at 1 and keep the phone. On "Hard" you sometimes count down from 100.',
+        ],
+      },
+      story: {
+        name: 'Story',
+        short: 'Tell a story together, one word each.',
+        long: [
+          'You get the start of a sentence. Each player adds exactly one word, so a sentence grows, and then the next one.',
+          'The sentence has to keep making grammatical sense. Hesitate or say something that does not fit, and you keep the phone.',
         ],
       },
     },
