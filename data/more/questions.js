@@ -40,7 +40,6 @@ export const QUESTIONS_MORE = `
 1 | Nenne etwas aus Metall. | Name something made of metal.
 1 | Nenne etwas aus Papier. | Name something made of paper.
 1 | Was gibt es in einem Garten? | What's in a garden?
-1 | Was hat Knöpfe? | Name something with buttons.
 1 | Was sieht man nachts? | What do you see at night?
 1 | Was macht man am Wochenende? | Name something you do at the weekend.
 1 | Was macht man morgens? | Name something you do in the morning.
@@ -166,7 +165,7 @@ export const QUESTIONS_MORE = `
 2 | Nenne eine Nudelsorte. | Name a type of pasta.
 2 | Nenne eine Eissorte. | Name an ice cream flavour.
 2 | Nenne eine Pizzasorte oder einen Belag. | Name a pizza topping.
-2 | Nenne einen Hunderasse. | Name a dog breed.
+2 | Nenne eine Hunderasse. | Name a dog breed.
 2 | Nenne ein Tier, das nachts aktiv ist. | Name a nocturnal animal.
 2 | Nenne ein ausgestorbenes Tier. | Name an extinct animal.
 2 | Nenne ein Tier aus Australien. | Name an Australian animal.
@@ -321,7 +320,7 @@ export const QUESTIONS_MORE = `
 3 | Nenne eine Fischsorte zum Essen. | Name a fish you can eat.
 3 | Nenne eine Kuchensorte oder Torte. | Name a type of cake.
 3 | Nenne ein französisches Wort, das jeder kennt. | Name a French word everyone knows.
-3 | Nenne ein englisches Wort im Deutschen. | Name a German word used in English.
+3 | Nenne ein englisches Wort, das man im Deutschen benutzt. | Name a German word that is used in English.
 3 | Nenne ein Wort, das rückwärts gleich ist. | Name a palindrome.
 3 | Nenne ein Wort mit mehr als zehn Buchstaben. | Name a word with more than ten letters.
 3 | Nenne ein Wort, das zwei Bedeutungen hat. | Name a word with two meanings.
@@ -357,7 +356,7 @@ export const QUESTIONS_MORE = `
 3 | Nenne einen Krieg oder eine Schlacht. | Name a war or battle.
 3 | Nenne einen Gegenstand aus dem Mittelalter. | Name something from the Middle Ages.
 3 | Nenne etwas, das Ritter hatten. | Name something knights had.
-3 | Nenne eine Römische Zahl oder ein Wort auf Latein. | Name a Roman numeral or a Latin word.
+3 | Nenne eine römische Zahl oder ein Wort auf Latein. | Name a Roman numeral or a Latin word.
 3 | Nenne ein Tier, das mit B beginnt. | Name an animal that starts with B.
 3 | Nenne ein Tier, das mit K beginnt. | Name an animal that starts with C.
 3 | Nenne ein Essen, das mit S beginnt. | Name a food that starts with S.

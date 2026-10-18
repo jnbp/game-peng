@@ -56,7 +56,7 @@ Unser Lehrer kam heute mit | Our teacher came in today with
 Der Schneemann vor unserem Haus | The snowman outside our house
 Mitten in der Nacht klopfte es und | In the middle of the night someone knocked and
 Auf dem Dachboden stand eine Kiste mit | In the attic there was a box with
-Der Hund hat meine Hausaufgaben | The dog ate my homework and
+Der Hund hat meine Hausaufgaben gefressen und | The dog ate my homework and
 Wenn ich unsichtbar wäre | If I were invisible
 Ich gewann im Lotto und kaufte sofort | I won the lottery and immediately bought
 Die Ente im Park wollte | The duck in the park wanted
