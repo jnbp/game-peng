@@ -94,9 +94,7 @@ export const COMPOUNDS_MORE = `
 1 | Leder | Leather
 1 | Wolle | Wool
 1 | Schokolade | Chocolate
-1 | Bett | Bedtime
 1 | Pizza | Pizza
-1 | Garten | Yard
 # medium
 2 | Wand | Wall
 2 | Dach | Roof
@@ -244,15 +242,10 @@ export const COMPOUNDS_MORE = `
 3 | Staat | State
 3 | Stahl | Steel
 3 | Seide | Silk
-3 | Kopf | Mind
 3 | Gift | Poison
 3 | Schild | Shield
-3 | Turm | Spire
 3 | Feder | Feather
 3 | Kugel | Bullet
-3 | Rauch | Steam
-3 | Funk | Spark
-3 | Stern | Moonbeam
 3 | Glocke | Bell
 3 | Pfote | Paw
 3 | Schwanz | Tail
@@ -273,7 +266,6 @@ export const COMPOUNDS_MORE = `
 3 | Esel | Donkey
 3 | Ziege | Goat
 3 | Schaf | Sheep
-3 | Hahn | Cock
 3 | Kröte | Toad
 3 | Frosch | Frog
 3 | Hai | Shark
