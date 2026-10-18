@@ -1,7 +1,8 @@
 // Checks the content in data/: format, duplicates, characters.  Run: node scripts/check-data.mjs
 import { CONTENT, drawTask } from '../js/tasks.js';
+import { CATS } from '../js/i18n.js';
 
-const { SYL, QUE, COM, SCR, CHA } = CONTENT;
+const { SYL, QUE, COM, SCR, CHA, RHY, TOP, STO } = CONTENT;
 let errors = 0;
 const fail = (msg) => { errors += 1; console.log('ERROR  ' + msg); };
 const dupes = (list, what) => {
@@ -39,8 +40,18 @@ for (const k of ['simple', 'compound']) {
   dupes(CHA[k].map((x) => x.en), `chains ${k} en`);
 }
 
+for (const l of ['de', 'en']) {
+  for (const w of RHY[l]) {
+    if (!w.word || /\s/.test(w.word) || ![1, 2, 3].includes(w.lvl)) fail(`rhymes ${l}: invalid line "${w.word}"`);
+  }
+}
+for (const x of TOP) if (![1, 2, 3].includes(x.lvl) || !x.de || !x.en) fail(`topics: incomplete line "${x.de || x.en}"`);
+dupes(TOP.map((x) => x.en), 'topics en');
+for (const x of STO) if (!x.de || !x.en) fail(`stories: incomplete line "${x.de || x.en}"`);
+dupes(STO.map((x) => x.en), 'stories en');
+
 // Every combination has to yield tasks
-for (const cat of ['syllable', 'famous', 'question', 'compound', 'scramble', 'chain']) {
+for (const cat of CATS) {
   for (const lang of ['de', 'en', 'both']) {
     for (const diff of ['easy', 'mid', 'hard']) {
       try {
@@ -58,5 +69,6 @@ for (const cat of ['syllable', 'famous', 'question', 'compound', 'scramble', 'ch
 
 console.log(`Syllables: ${SYL.de.length} de, ${SYL.en.length} en, ${SYL.both.length} bilingual`);
 console.log(`Questions: ${QUE.length} · Compounds: ${COM.length} · Scramble: ${SCR.de.length} de, ${SCR.en.length} en · Chains: ${CHA.simple.length} + ${CHA.compound.length}`);
+console.log(`Rhymes: ${RHY.de.length} de, ${RHY.en.length} en · Topics: ${TOP.length} · Story starts: ${STO.length}`);
 console.log(errors ? `${errors} error(s)` : 'All good');
 process.exit(errors ? 1 : 0);

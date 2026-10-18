@@ -5,6 +5,14 @@ import { QUESTIONS } from '../data/questions.js';
 import { COMPOUNDS } from '../data/compounds.js';
 import { SCRAMBLE } from '../data/scramble.js';
 import { CHAINS } from '../data/chains.js';
+import { SYLLABLES_MORE } from '../data/more/syllables.js';
+import { QUESTIONS_MORE } from '../data/more/questions.js';
+import { COMPOUNDS_MORE } from '../data/more/compounds.js';
+import { SCRAMBLE_MORE } from '../data/more/scramble.js';
+import { CHAINS_MORE } from '../data/more/chains.js';
+import { RHYMES } from '../data/rhymes.js';
+import { TOPICS } from '../data/topics.js';
+import { STORIES } from '../data/stories.js';
 
 const lines = (s) => s.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#'));
 const cells = (l) => l.split('|').map((x) => x.trim());
@@ -26,7 +34,22 @@ const parsePairs2 = (s) => lines(s).map((l) => {
   return { de, en };
 });
 
-const SYL = { de: parseSyl(SYLLABLES.de), en: parseSyl(SYLLABLES.en) };
+// The second set in data/more/ adds to the first; an entry that exists twice is kept once
+const both = (a, b) => `${a}\n${b}`;
+const unique = (list, key) => {
+  const seen = new Set();
+  return list.filter((x) => {
+    const k = key(x).toLowerCase();
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+};
+
+const SYL = {
+  de: unique(parseSyl(both(SYLLABLES.de, SYLLABLES_MORE.de)), (x) => x.text),
+  en: unique(parseSyl(both(SYLLABLES.en, SYLLABLES_MORE.en)), (x) => x.text),
+};
 // Bilingual: only syllables that work in both languages
 SYL.both = SYL.de
   .map((a) => {
@@ -37,12 +60,21 @@ SYL.both = SYL.de
   })
   .filter(Boolean);
 
-const QUE = parsePairs3(QUESTIONS);
-const COM = parsePairs3(COMPOUNDS);
-const SCR = { de: parseWords(SCRAMBLE.de), en: parseWords(SCRAMBLE.en) };
-const CHA = { simple: parsePairs2(CHAINS.simple), compound: parsePairs2(CHAINS.compound) };
+const QUE = unique(parsePairs3(both(QUESTIONS, QUESTIONS_MORE)), (x) => x.de);
+const COM = unique(parsePairs3(both(COMPOUNDS, COMPOUNDS_MORE)), (x) => x.de);
+const SCR = {
+  de: unique(parseWords(both(SCRAMBLE.de, SCRAMBLE_MORE.de)), (x) => x.word),
+  en: unique(parseWords(both(SCRAMBLE.en, SCRAMBLE_MORE.en)), (x) => x.word),
+};
+const CHA = {
+  simple: unique(parsePairs2(both(CHAINS.simple, CHAINS_MORE.simple)), (x) => x.de),
+  compound: unique(parsePairs2(both(CHAINS.compound, CHAINS_MORE.compound)), (x) => x.de),
+};
+const RHY = { de: unique(parseWords(RHYMES.de), (x) => x.word), en: unique(parseWords(RHYMES.en), (x) => x.word) };
+const TOP = unique(parsePairs3(TOPICS), (x) => x.de);
+const STO = unique(parsePairs2(STORIES), (x) => x.de);
 
-export const CONTENT = { SYL, QUE, COM, SCR, CHA };
+export const CONTENT = { SYL, QUE, COM, SCR, CHA, RHY, TOP, STO };
 
 const rnd = (n) => Math.floor(Math.random() * n);
 export function shuffle(a) {
@@ -85,6 +117,24 @@ const LETTERS = {
   mid: 'ABCDEFGHJKLMNOPRSTW',
   hard: 'FGINOUVWZ',
 };
+// Starting letters for "Topic + letter": common in German and English
+const TOPIC_LETTERS = {
+  easy: 'ABDFGHKLMPRST',
+  mid: 'ABCDEFGHKLMNOPRSTW',
+  hard: 'EIJNOUVWZ',
+};
+// Forbidden letters for "Without": the more common the letter, the harder
+const BANNED = {
+  easy: 'UOI',
+  mid: 'AINRST',
+  hard: 'EEA',
+};
+const COUNT = {
+  easy: [7, 9],
+  mid: [4, 5, 6, 7, 8],
+  hard: [3, 4, 6, 7],
+};
+const pick = (str) => str[rnd(str.length)];
 
 function scramble(word) {
   if (word.length < 2) return [...word];
@@ -97,6 +147,7 @@ function scramble(word) {
 
 /**
  * @param cat   syllable | famous | question | compound | scramble | chain
+ *              | rhyme | letter | alphabet | without | count | story
  * @param lang  de | en | both
  * @param diff  easy | mid | hard
  */
@@ -140,6 +191,31 @@ export function drawTask(cat, lang, diff) {
       const list = rule === 'compound' ? 'compound' : 'simple';
       const item = draw(`chain:${list}`, () => CHA[list]);
       return { cat, rule, de: item.de, en: item.en };
+    }
+    case 'rhyme': {
+      const l = lang === 'both' ? (Math.random() < 0.5 ? 'de' : 'en') : lang;
+      const item = draw(`rhyme:${l}:${diff}`, () => RHY[l].filter((x) => levelOk(x.lvl, diff)));
+      return { cat, word: item.word, lang: l };
+    }
+    case 'letter': {
+      const item = draw(`topic:letter:${diff}`, () => TOP.filter((x) => levelOk(x.lvl, diff)));
+      return { cat, de: item.de, en: item.en, letter: pick(TOPIC_LETTERS[diff]) };
+    }
+    case 'alphabet': {
+      const item = draw(`topic:alphabet:${diff}`, () => TOP.filter((x) => x.lvl <= (diff === 'hard' ? 3 : 2)));
+      return { cat, de: item.de, en: item.en };
+    }
+    case 'without': {
+      const item = draw(`topic:without:${diff}`, () => TOP.filter((x) => x.lvl <= 2));
+      return { cat, de: item.de, en: item.en, letter: pick(BANNED[diff]) };
+    }
+    case 'count': {
+      const n = COUNT[diff][rnd(COUNT[diff].length)];
+      return { cat, n, down: diff === 'hard' && Math.random() < 0.5 };
+    }
+    case 'story': {
+      const item = draw('story', () => STO);
+      return { cat, de: item.de, en: item.en };
     }
     default:
       throw new Error(`Unknown category: ${cat}`);
