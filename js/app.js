@@ -540,7 +540,8 @@ const SCREENS = {
         <button class="btn ghost" data-a="newGameAsk">${t.newGame}</button>
         <button class="btn textbtn" data-a="startGame" data-score="0" data-s="nav">${t.quick}</button>`
     : `<button class="btn primary" data-a="startGame" data-score="1" data-s="nav">${t.start}</button>
-        <button class="btn ghost" data-a="startGame" data-score="0" data-s="nav">${t.quick}</button>`}
+        <button class="btn ghost" data-a="startGame" data-score="0" data-s="nav">${t.quick}</button>
+        ${names ? `<button class="btn textbtn" data-a="freshPlayers">${t.freshPlayers}</button>` : ''}`}
       </footer>
     </main>`;
   },
@@ -874,7 +875,8 @@ function playersSheet(refresh = false) {
     </div>
     <p class="small muted">${t.playersHint}</p>
     <div class="names">${inputs}</div>
-    <button class="btn primary" data-a="closePlayers">${t.done}</button>`;
+    <button class="btn primary" data-a="closePlayers">${t.done}</button>
+    ${S.names.some((n) => n && n.trim()) ? `<button class="btn textbtn" data-a="clearNames">${t.clearNames}</button>` : ''}`;
   if (refresh && !sheetEl.hidden) {
     const panel = $('.panel', sheetEl);
     const top = panel.scrollTop;
@@ -896,7 +898,8 @@ function newGameSheet() {
   openSheet(`<h2 class="title">${t.newGameAsk}</h2>
     <p class="muted">${t.newGameHint}</p>
     <button class="btn primary" data-a="closeSheet" data-force="1">${t.newGameNo}</button>
-    <button class="btn ghost warn" data-a="newGame" data-s="nav">${t.newGameYes}</button>`);
+    <button class="btn ghost warn" data-a="newGame" data-s="nav">${t.newGameYes}</button>
+    <button class="btn ghost warn" data-a="newGameFresh">${t.newGameFresh}</button>`);
 }
 
 function wipeSheet() {
@@ -1365,6 +1368,21 @@ const ACTIONS = {
   resumeGame() { resumeGame(); },
   newGameAsk() { newGameSheet(); },
   newGame() { closeSheet(true, true); clearGame(); startGame(true); },
+  // Clear the names of the last group, then let the new group enter theirs
+  newGameFresh() { clearGame(); ACTIONS.freshPlayers(); },
+  freshPlayers() {
+    S.names = [];
+    save();
+    closeSheet(true, true);
+    render({ keepScroll: true });
+    playersSheet();
+  },
+  clearNames() {
+    S.names = [];
+    save();
+    sfx.off();
+    playersSheet(true);
+  },
   extraAll(el) {
     const on = el.dataset.on === '1';
     EXTRA_CATS.forEach((c) => { S.cats[c] = on; });
