@@ -1,4 +1,4 @@
-import { TEXT, CATS } from './i18n.js';
+import { TEXT, CATS, BASE_CATS, EXTRA_CATS } from './i18n.js';
 import { sfx } from './audio.js';
 import { drawTask } from './tasks.js';
 import { ha, cleanUrl } from './ha.js';
@@ -22,7 +22,10 @@ const deviceLang = () => ((navigator.language || 'de').toLowerCase().startsWith(
 const DEFAULTS = () => ({
   lang: deviceLang(), // de | en | both
   ui: deviceLang(), // UI language
-  cats: { syllable: true, famous: true, question: true, compound: true, scramble: true, chain: true },
+  cats: {
+    syllable: true, famous: true, question: true, compound: true, scramble: true, chain: true,
+    rhyme: false, letter: false, alphabet: false, without: false, count: false, story: false,
+  },
   pick: 'dice', // dice | choose
   ignite: 'auto', // auto | manual
   tmin: 10,
@@ -59,6 +62,24 @@ let wiping = false; // set while all local data is being deleted: nothing may be
 function save() {
   if (wiping) return;
   try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* private mode */ }
+}
+
+// A scored game in progress survives leaving it and reloading the page
+const GAME_KEY = 'peng.game.v1';
+function saveGame() {
+  if (wiping || !G || !G.scoring) return;
+  const { round, total, scores, starter, lastCat } = G;
+  try { localStorage.setItem(GAME_KEY, JSON.stringify({ round, total, scores, starter, lastCat })); } catch (e) { /* private mode */ }
+}
+function savedGame() {
+  try {
+    const g = JSON.parse(localStorage.getItem(GAME_KEY) || 'null');
+    if (g && Array.isArray(g.scores) && g.scores.length >= 2 && g.round >= 1 && g.round <= g.total) return g;
+  } catch (e) { /* ignore */ }
+  return null;
+}
+function clearGame() {
+  try { localStorage.removeItem(GAME_KEY); } catch (e) { /* ignore */ }
 }
 
 let S = load();
@@ -215,8 +236,14 @@ function pattern(text, pos) {
 }
 
 const SAMPLE = {
-  de: { syllable: 'SCH__', famous: 'P · C', question: 'Was …?', compound: 'KOPF', scramble: 'T R S A E N', chain: 'Haus › Tür › Schloss' },
-  en: { syllable: 'SH__', famous: 'P · C', question: 'What …?', compound: 'HEAD', scramble: 'T R S A E N', chain: 'house › door › key' },
+  de: {
+    syllable: 'SCH__', famous: 'P · C', question: 'Was …?', compound: 'KOPF', scramble: 'T R S A E N', chain: 'Haus › Tür › Schloss',
+    rhyme: 'Haus › Maus', letter: 'Tiere · B', alphabet: 'A › B › C', without: 'Tiere ohne E', count: '5, 6, Peng!', story: 'Gestern im Zoo …',
+  },
+  en: {
+    syllable: 'SH__', famous: 'P · C', question: 'What …?', compound: 'HEAD', scramble: 'T R S A E N', chain: 'house › door › key',
+    rhyme: 'cat › hat', letter: 'Animals · B', alphabet: 'A › B › C', without: 'Animals, no E', count: '5, 6, Peng!', story: 'Yesterday at the zoo …',
+  },
 };
 
 function gameHeader() {
@@ -250,6 +277,27 @@ function taskMain(task) {
       const n = task.letters.length;
       return `<div class="main" data-fit="240"><div class="tiles" style="--n:${n};--half:${Math.ceil(n / 2)}">${task.letters.map((l, i) => `<span style="--i:${i}">${l}</span>`).join('')}</div></div>`;
     }
+    case 'rhyme':
+      return `<div class="main" data-fit="340"><div class="line upper">${esc(task.word)}</div></div>`;
+    case 'letter': {
+      const [a, b] = words(task);
+      // The letter is the eye-catcher; the topic sits below it, still easy to read
+      return `<div class="main" data-fit="420"><div class="line">${task.letter}</div><p class="q" style="font-size:0.3em;margin-top:0.12em">${esc(a)}</p>${b ? `<p class="q second" style="font-size:0.22em">${esc(b)}</p>` : ''}</div>`;
+    }
+    case 'alphabet': {
+      const [a, b] = words(task);
+      return `<div class="main" data-fit="150"><p class="q">${esc(a)}</p>${b ? `<p class="q second">${esc(b)}</p>` : ''}<div class="line second">A · B · C …</div></div>`;
+    }
+    case 'without': {
+      const [a, b] = words(task);
+      return `<div class="main" data-fit="150"><p class="q">${esc(a)}</p>${b ? `<p class="q second">${esc(b)}</p>` : ''}<div class="line second">${t.without} ${task.letter}</div></div>`;
+    }
+    case 'count':
+      return `<div class="main" data-fit="460"><div class="line">${task.n}</div>${task.down ? '<div class="line second" style="font-size:0.22em">100 ↓</div>' : ''}</div>`;
+    case 'story': {
+      const [a, b] = words(task);
+      return `<div class="main" data-fit="150"><p class="q">${esc(a)} …</p>${b ? `<p class="q second">${esc(b)} …</p>` : ''}</div>`;
+    }
     default: {
       const [a, b] = words(task);
       return `<div class="main" data-fit="340"><div class="line upper">${esc(a)}</div>${b ? `<div class="line upper second">${esc(b)}</div>` : ''}</div>`;
@@ -265,6 +313,12 @@ function taskRule(task) {
     case 'compound': return t.ruleCompound;
     case 'scramble': return t.ruleScramble;
     case 'chain': return t.ruleChain[task.rule];
+    case 'rhyme': return t.ruleRhyme;
+    case 'letter': return t.ruleLetter(task.letter);
+    case 'alphabet': return t.ruleAlphabet;
+    case 'without': return t.ruleWithout(task.letter);
+    case 'count': return t.ruleCount(task.n, task.down);
+    case 'story': return t.ruleStory;
     default: return '';
   }
 }
@@ -458,6 +512,7 @@ function lightsSheet() {
 const SCREENS = {
   start() {
     const names = namedCount();
+    const saved = savedGame();
     const langLabel = S.lang === 'both' ? t.langBothLong : S.lang === 'de' ? t.langDe : t.langEn;
     return `<main class="screen start">
       <header class="top">
@@ -479,14 +534,19 @@ const SCREENS = {
         <button class="rowbtn" data-a="go" data-to="settings" data-s="nav"><span class="mono muted">${t.rowLang}</span><span>${langLabel}</span></button>
       </nav>
       <footer class="actions">
-        <button class="btn primary" data-a="startGame" data-score="1" data-s="nav">${t.start}</button>
-        <button class="btn ghost" data-a="startGame" data-score="0" data-s="nav">${t.quick}</button>
+        ${saved
+    ? `<p class="mono muted center">${t.savedGame} · ${t.savedInfo(saved.round, saved.total, saved.scores.length)}</p>
+        <button class="btn primary" data-a="resumeGame" data-s="nav">${t.resumeGame}</button>
+        <button class="btn ghost" data-a="newGameAsk">${t.newGame}</button>
+        <button class="btn textbtn" data-a="startGame" data-score="0" data-s="nav">${t.quick}</button>`
+    : `<button class="btn primary" data-a="startGame" data-score="1" data-s="nav">${t.start}</button>
+        <button class="btn ghost" data-a="startGame" data-score="0" data-s="nav">${t.quick}</button>`}
       </footer>
     </main>`;
   },
 
   cats() {
-    const rows = CATS.map((c) => {
+    const row = (c) => {
       const on = S.cats[c];
       return `<div class="catrow">
         <div class="cattext">
@@ -496,13 +556,18 @@ const SCREENS = {
         <button class="icon ghosticon" data-a="info" data-cat="${c}" aria-label="${t.info}: ${t.cat[c].name}">${ICON.info}</button>
         ${sw(`cat.${c}`, on, t.cat[c].name)}
       </div>`;
-    }).join('');
+    };
+    const extraOn = EXTRA_CATS.some((c) => S.cats[c]);
     return `<main class="screen cats">
       <header class="top left">
         <button class="icon" data-a="go" data-to="start" data-s="back" aria-label="${t.back}">${ICON.back}</button>
         <h1 class="title">${t.catsTitle}</h1>
       </header>
-      <section class="list stagger">${rows}</section>
+      <span class="mono muted">${t.catsBase}</span>
+      <section class="list stagger">${BASE_CATS.map(row).join('')}</section>
+      <div class="spread"><span class="mono muted">${t.catsExtra}</span><button class="btn textbtn fit" data-a="extraAll" data-on="${extraOn ? 0 : 1}">${extraOn ? t.extraNone : t.extraAll}</button></div>
+      <p class="small muted">${t.catsExtraHint}</p>
+      <section class="list">${EXTRA_CATS.map(row).join('')}</section>
       <section class="block">
         <span class="mono muted">${t.whoPicks}</span>
         ${seg('pick', [['dice', t.pickDice], ['choose', t.pickChoose]], S.pick)}
@@ -580,7 +645,7 @@ const SCREENS = {
     if (S.pick === 'choose') {
       return `<main class="screen g roll choose">
         ${gameHeader()}
-        <section class="stage top-align">
+        <section class="stage top-align" style="overflow-y:auto;min-height:0;overscroll-behavior:contain">
           <h2 class="title">${t.chooseTitle}</h2>
           <div class="choosegrid stagger">${act.map((c) => `<button class="choice" data-a="choose" data-cat="${c}" data-s="none"><strong>${t.cat[c].name}</strong><span class="mono muted">${SAMPLE[S.ui][c]}</span></button>`).join('')}</div>
         </section>
@@ -667,9 +732,9 @@ const SCREENS = {
 
   boom() {
     const last = G.scoring && G.round >= G.total;
-    const many = S.players > 5;
+    const many = G.scores.length > 5;
     const players = G.scoring
-      ? `<div class="who stagger ${many ? 'grid' : ''}"${S.players > 12 ? ' style="grid-template-columns:repeat(3,minmax(0,1fr))"' : ''}>${G.scores.map((p, i) => `<button class="player" aria-pressed="false" data-a="blame" data-i="${i}" data-s="none"><span>${esc(playerName(i))}</span><span class="mono pts">${many ? p : t.points(p)}</span></button>`).join('')}</div>`
+      ? `<div class="who stagger ${many ? 'grid' : ''}"${G.scores.length > 12 ? ' style="grid-template-columns:repeat(3,minmax(0,1fr))"' : ''}>${G.scores.map((p, i) => `<button class="player" aria-pressed="false" data-a="blame" data-i="${i}" data-s="none"><span>${esc(playerName(i))}</span><span class="mono pts">${many ? p : t.points(p)}</span></button>`).join('')}</div>`
       : '';
     const debris = Array.from({ length: 22 }, () => `<i class="p" style="--a:${rnd(360)}deg;--d:${120 + rnd(420)}px;--s:${5 + rnd(13)}px;--t:${600 + rnd(700)}ms"></i>`).join('');
     return `<main class="screen boom">
@@ -822,8 +887,16 @@ function playersSheet(refresh = false) {
 
 function quitSheet() {
   openSheet(`<h2 class="title">${t.quitAsk}</h2>
+    ${G && G.scoring ? `<p class="muted">${t.quitSaved}</p>` : ''}
     <button class="btn primary" data-a="closeSheet" data-force="1">${t.quitNo}</button>
     <button class="btn ghost" data-a="home" data-s="back">${t.quitYes}</button>`);
+}
+
+function newGameSheet() {
+  openSheet(`<h2 class="title">${t.newGameAsk}</h2>
+    <p class="muted">${t.newGameHint}</p>
+    <button class="btn primary" data-a="closeSheet" data-force="1">${t.newGameNo}</button>
+    <button class="btn ghost warn" data-a="newGame" data-s="nav">${t.newGameYes}</button>`);
 }
 
 function wipeSheet() {
@@ -906,6 +979,18 @@ function startGame(scoring) {
     pending: null,
     lastCat: null,
   };
+  if (scoring) saveGame(); // a quick round leaves a saved game alone
+  enterGame();
+}
+
+function resumeGame() {
+  const g = savedGame();
+  if (!g) { startGame(true); return; }
+  G = { ...g, scoring: true, cat: null, task: null, pending: null };
+  enterGame();
+}
+
+function enterGame() {
   wake();
   if (lightsOn()) ha.connect().catch(() => {});
   try { history.pushState({ peng: 1 }, ''); } catch (e) { /* ignore */ }
@@ -1262,12 +1347,14 @@ const ACTIONS = {
       G.scores[G.pending] += 1;
       G.starter = G.pending;
       if (G.round >= G.total) {
+        clearGame();
         sfx.finale();
         go('end');
         return;
       }
     }
     G.round += 1;
+    saveGame();
     sfx.nav();
     nextRound();
   },
@@ -1275,6 +1362,17 @@ const ACTIONS = {
   again() { startGame(true); },
 
   wipeAsk() { wipeSheet(); },
+  resumeGame() { resumeGame(); },
+  newGameAsk() { newGameSheet(); },
+  newGame() { closeSheet(true, true); clearGame(); startGame(true); },
+  extraAll(el) {
+    const on = el.dataset.on === '1';
+    EXTRA_CATS.forEach((c) => { S.cats[c] = on; });
+    if (!activeCats().length) S.cats.syllable = true;
+    (on ? sfx.on : sfx.off)();
+    save();
+    render({ keepScroll: true });
+  },
   wipe() { wipeData(); },
 
   haConnect() { haConnect(); },

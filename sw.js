@@ -1,5 +1,5 @@
 // Offline cache. Bump the version number whenever the game changes.
-const VERSION = 'peng-v7';
+const VERSION = 'peng-v8';
 const FONT_HOST = 'fonts.bunny.net';
 const FILES = [
   './',
@@ -17,6 +17,14 @@ const FILES = [
   'data/compounds.js',
   'data/scramble.js',
   'data/chains.js',
+  'data/rhymes.js',
+  'data/topics.js',
+  'data/stories.js',
+  'data/more/syllables.js',
+  'data/more/questions.js',
+  'data/more/compounds.js',
+  'data/more/scramble.js',
+  'data/more/chains.js',
   'icons/icon.svg',
 ];
 

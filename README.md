@@ -27,6 +27,23 @@ The game is available in German and English and follows the device language by d
 
 The dice pick the category, or you choose it yourselves before every round.
 
+### Extra pack
+
+Six more ways to play, off by default. Switch them on in the category screen, one by one or all at once; they mix with the active original categories.
+
+| Category | Task |
+|---|---|
+| Rhyme | A word that rhymes with the word shown. |
+| Starts with | Something from the topic that starts with the letter shown (animals, B). |
+| ABC | Take turns through the alphabet on a topic: A, B, C … Q, X and Y may be skipped. |
+| Without | Something from the topic without the banned letter (animals without E). |
+| Count | Count in turn; every number that contains the digit or is divisible by it becomes "Peng!". On hard, sometimes downwards from 100. |
+| Story | Tell a story together, one word each, from a given start. |
+
+## Saved games
+
+A scored game is saved after every round. If you leave it or close the page, the start screen offers "Keep playing" or "Delete game and start over". Quick rounds never touch a saved game.
+
 ## Settings
 
 - Language: German, English or both. In bilingual mode every task is shown in both languages.
@@ -69,8 +86,12 @@ All tasks live in `data/`, one entry per line. The format is described at the to
 | `data/compounds.js` | Words for Compound | `1 \| German \| English` |
 | `data/scramble.js` | Source words for Scramble | `1 \| WORD` |
 | `data/chains.js` | First words for Chain | `German \| English` |
+| `data/more/*.js` | A second set for each of the files above, same formats; duplicates are ignored | as above |
+| `data/rhymes.js` | Words for Rhyme, separate lists for German and English | `1 \| Haus` |
+| `data/topics.js` | Topics for Starts with, ABC and Without | `1 \| German \| English` |
+| `data/stories.js` | Sentence starts for Story | `German \| English` |
 
-Level 1 is easy, 2 medium, 3 hard. To verify, run `node scripts/check-data.mjs`; it reports format errors and duplicates.
+Level 1 is easy, 2 medium, 3 hard. Easy uses level 1, medium levels 1 and 2, hard levels 2 and 3. To verify, run `node scripts/check-data.mjs`; it reports format errors and duplicates.
 
 After any change, bump the version number in `sw.js`, otherwise devices that already installed the game keep seeing the old version for a while.
 
