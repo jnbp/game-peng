@@ -42,7 +42,7 @@ Six more ways to play, off by default. Switch them on in the category screen, on
 
 ## Saved games
 
-A scored game is saved after every round. If you leave it or close the page, the start screen offers "Keep playing" or "Delete game and start over". Quick rounds never touch a saved game.
+A scored game is saved after every round. If you leave it or close the page, the start screen offers "Keep playing" or "Delete game and start over", either with the same players or with the names cleared for a new group. "New players (clear names)" on the start screen and "Clear all names" in the player list do the same without a saved game. Quick rounds never touch a saved game.
 
 ## Settings
 
